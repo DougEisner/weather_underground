@@ -1,38 +1,51 @@
-require_relative 'api_calls/ten_day_forecast'
-require_relative 'api_calls/current_conditions'
+require 'net/http'
+require 'json'
 require 'pry'
+require 'redis'
 
-def get_city_state_or_zip(location)
-  match = /([^,]+), (\w{2})/.match(location)
-
-  if match.nil?
-    location
-  else
-    "#{match[2]}/#{match[1].gsub(' ', '_')}"
-  end
+def get_artist_id(name)
+  url = "https://api.spotify.com/v1/search?q=#{name}&type=artist"
+  # TODO: check redis for key, return if exists, otherwise continue
+  response = Net::HTTP.get(URI(url))
+  data = JSON.parse(response)
+  artist_id = data["artists"]["items"][0]["id"]
+  puts "The #{name} artist id is #{artist_id}"
+  puts ''
+  artist_id
 end
 
+
+def get_top_tracks(artist_id)
+  url = "https://api.spotify.com/v1/artists/#{artist_id}/top-tracks?country=US"
+  # TODO: check redis for key, return if exists, otherwise continue
+
+
+  response = Net::HTTP.get(URI(url))
+  top_track_data = JSON.parse(response)
+  tracks = top_track_data['tracks']
+
+
+
+  count = 0
+  10.times do |name|
+    track = tracks[count]['name']
+    puts "Track #{count + 1}: #{track}"
+    count += 1
+  end
+
+  #TODO set Redis cash key = url, value = data
+end
+
+
+
 def main
-  puts 'Welcome to your weather. Please input your location:'
 
-  location = get_city_state_or_zip(gets.chomp)
+puts 'Enter the name of an artist to look up:'
+artist_name = gets.chomp
+artist_id = get_artist_id(artist_name)
 
-  ten_day_forecast = TenDayForecast.new
+get_top_tracks(artist_id)
 
-  current_conditions = CurrentConditions.new
-
-  puts 'Ten Day Forecast Keys:'
-  puts ten_day_forecast.get(location).keys
-  weather = ten_day_forecast.get(location)
-  puts  "\nForecast Keys:"
-  puts weather['forecast'].keys
-  puts  "\nsimpleforecast Keys:"
-  puts weather['forecast']['simpleforecast'].keys
-  puts "forecastday hash:"
-  puts weather['forecast']['simpleforecast']['forecastday']
-
-  puts "\nCurrent Conditions Keys:"
-  puts current_conditions.get(location).keys
 end
 
 main if __FILE__ == $PROGRAM_NAME
